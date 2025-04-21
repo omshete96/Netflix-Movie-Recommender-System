@@ -21,16 +21,31 @@ cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 # Map titles to index
 indices = pd.Series(df.index, index=df['title'].str.lower()).drop_duplicates()
 
-# Function to recommend movies
-def get_recommendations(title, cosine_sim=cosine_sim):
-    title = title.lower()
-    idx = indices.get(title)
-    if idx is None:
-        return "❌ Title not found in dataset."
+# Function to get recommendations based on the theme
+def get_recommendations_by_theme(theme, cosine_sim=cosine_sim):
+    theme = theme.lower()
     
-    sim_scores = list(enumerate(cosine_sim[idx]))
+    # Filter movies that match the theme
+    filtered_movies = df[df['listed_in'].str.lower().str.contains(theme, na=False)]
+    
+    if filtered_movies.empty:
+        return "❌ No movies found for the given theme."
+    
+    # Combine relevant content for similarity calculation
+    tfidf_matrix_theme = tfidf.transform(filtered_movies['content'])
+    
+    # Calculate cosine similarity for the filtered movies
+    cosine_sim_theme = cosine_similarity(tfidf_matrix_theme, tfidf_matrix_theme)
+    
+    # We are comparing within the filtered set, so indices will be local to the filtered set
+    sim_scores = list(enumerate(cosine_sim_theme.mean(axis=1)))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    
+    # Pick top 5 movies or fewer if not enough movies
     sim_scores = sim_scores[1:6]  # Top 5
-
+    
     movie_indices = [i[0] for i in sim_scores]
-    return df['title'].iloc[movie_indices]
+    
+    # Return movie titles, handle cases where fewer than 5 results are available
+    return filtered_movies['title'].iloc[movie_indices].tolist()
+
